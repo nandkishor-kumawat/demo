@@ -31,6 +31,30 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     return true
   }
+  
+  // Handle opening files from other apps
+  func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey : Any] = [:]) -> Bool {
+    handleIncomingFile(url: url)
+    return true
+  }
+  
+  // Handle opening documents
+  func application(_ application: UIApplication, open url: URL, sourceApplication: String?, annotation: Any) -> Bool {
+    handleIncomingFile(url: url)
+    return true
+  }
+  
+  private func handleIncomingFile(url: URL) {
+    let fileInfo: [String: Any] = [
+      "uri": url.absoluteString,
+      "name": url.lastPathComponent,
+      "type": url.pathExtension
+    ]
+    
+    if let fileShareModuleClass = NSClassFromString("FileShareModule") as? NSObject.Type {
+      fileShareModuleClass.perform(NSSelectorFromString("addSharedFile:"), with: fileInfo)
+    }
+  }
 }
 
 class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {

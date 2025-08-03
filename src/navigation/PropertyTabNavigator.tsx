@@ -113,7 +113,7 @@ const PropertyTabNavigator: React.FC = () => {
   const windowHeight = Dimensions.get('window').height;
 
   const snapValue = snapPoints[currentSnapIndex];
-  const height = (parseFloat(snapValue) / 100) * windowHeight;
+  const height = (parseFloat(`${snapValue}`) / 100) * windowHeight;
 
   console.log(currentSnapIndex, snapValue, height);
   return (

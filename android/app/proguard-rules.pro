@@ -13,6 +13,10 @@
 -keep class com.awesomeproject.FileShareModule { *; }
 -keep class com.awesomeproject.FileSharePackage { *; }
 
+# Keep our ContactModule classes
+-keep class com.awesomeproject.ContactModule { *; }
+-keep class com.awesomeproject.ContactPackage { *; }
+
 # Keep React Native bridge methods
 -keepclassmembers class * {
     @com.facebook.react.bridge.ReactMethod <methods>;

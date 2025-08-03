@@ -19,6 +19,7 @@ class FileShareModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
         
         // Static storage for shared files using regular HashMap
         private val sharedFiles = mutableListOf<Map<String, String>>()
+        private var lastIntentProcessed: String? = null
     }
 
     override fun getName(): String = MODULE_NAME
@@ -126,11 +127,26 @@ class FileShareModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
             
             val activity = currentActivity as? MainActivity
             if (activity == null) {
-                Log.d(TAG, "Activity is null")
+                Log.d(TAG, "Activity is null, returning empty array")
+                promise.resolve(Arguments.createArray())
+                return
+            }
+
+            val intent = activity.intent
+            val files = Arguments.createArray()
+
+            if (intent != null) {
+                val action = intent.action
+                val type = intent.type
                 
-                // Still return files from static storage if available
+                Log.d(TAG, "Intent action: $action")
+                Log.d(TAG, "Intent type: $type")
+                Log.d(TAG, "Intent extras: ${intent.extras}")
+                Log.d(TAG, "Intent data: ${intent.data}")
+
+                // If we have files in storage, return them first
                 if (sharedFiles.isNotEmpty()) {
-                    Log.d(TAG, "Returning ${sharedFiles.size} files from static storage (no activity)")
+                    Log.d(TAG, "Returning ${sharedFiles.size} files from static storage")
                     val filesArray = Arguments.createArray()
                     for (fileData in sharedFiles) {
                         val file = Arguments.createMap()
@@ -144,43 +160,36 @@ class FileShareModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                             }
                         }
                         filesArray.pushMap(file)
-                        Log.d(TAG, "Added file from storage: ${fileData["uri"]}")
                     }
                     promise.resolve(filesArray)
                     return
                 }
-                
-                promise.resolve(Arguments.createArray())
-                return
-            }
 
-            val intent = activity.intent
-            val files = Arguments.createArray()
-            var foundNewFiles = false
+                // Create a unique identifier for this intent
+                val intentId = "${action}_${intent.data}_${intent.getParcelableCompat<Uri>(Intent.EXTRA_STREAM)}_${intent.getParcelableArrayListCompat<Uri>(Intent.EXTRA_STREAM)?.size}"
+                Log.d(TAG, "Intent ID: $intentId, Last processed: $lastIntentProcessed")
 
-            if (intent != null) {
-                val action = intent.action
-                val type = intent.type
-                
-                Log.d(TAG, "Intent action: $action")
-                Log.d(TAG, "Intent type: $type")
-                Log.d(TAG, "Intent extras: ${intent.extras}")
+                // Process sharing intents
+                if (action == Intent.ACTION_SEND || action == Intent.ACTION_SEND_MULTIPLE || action == Intent.ACTION_VIEW) {
+                    
+                    // Only skip if we've already processed this exact intent
+                    if (intentId == lastIntentProcessed) {
+                        Log.d(TAG, "Already processed this intent, returning empty")
+                        promise.resolve(Arguments.createArray())
+                        return
+                    }
+                    
+                    Log.d(TAG, "Processing sharing intent")
+                    sharedFiles.clear() // Clear old files
+                    lastIntentProcessed = intentId
 
-                // Clear old files when we detect a new sharing intent
-                if ((action == Intent.ACTION_SEND || action == Intent.ACTION_SEND_MULTIPLE || action == Intent.ACTION_VIEW)) {
-                    Log.d(TAG, "Clearing old files for new sharing intent")
-                    sharedFiles.clear()
-                }
-
-                when (action) {
-                    Intent.ACTION_SEND -> {
-                        if (type != null) {
+                    when (action) {
+                        Intent.ACTION_SEND -> {
                             Log.d(TAG, "Handling single file sharing")
                             val fileUri = intent.getParcelableCompat<Uri>(Intent.EXTRA_STREAM)
                             if (fileUri != null) {
                                 Log.d(TAG, "Single file URI: $fileUri")
                                 
-                                foundNewFiles = true
                                 val file = Arguments.createMap()
                                 val actualMimeType = getMimeType(fileUri)
                                 val fileName = getFileName(fileUri)
@@ -209,9 +218,7 @@ class FileShareModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                                 Log.d(TAG, "Single file URI is null")
                             }
                         }
-                    }
-                    Intent.ACTION_SEND_MULTIPLE -> {
-                        if (type != null) {
+                        Intent.ACTION_SEND_MULTIPLE -> {
                             Log.d(TAG, "Handling multiple files sharing")
                             val fileUris = intent.getParcelableArrayListCompat<Uri>(Intent.EXTRA_STREAM)
                             if (fileUris != null && fileUris.isNotEmpty()) {
@@ -220,7 +227,6 @@ class FileShareModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                                 fileUris.forEachIndexed { index, uri ->
                                     Log.d(TAG, "Processing file ${index + 1}: $uri")
                                     
-                                    foundNewFiles = true
                                     val file = Arguments.createMap()
                                     val actualMimeType = getMimeType(uri)
                                     val fileName = getFileName(uri)
@@ -248,80 +254,51 @@ class FileShareModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
                                 }
                             } else {
                                 Log.d(TAG, "File URIs list is null or empty")
-                                if (fileUris == null) {
-                                    Log.d(TAG, "fileUris is null")
-                                } else {
-                                    Log.d(TAG, "fileUris is empty, size: ${fileUris.size}")
+                            }
+                        }
+                        Intent.ACTION_VIEW -> {
+                            if (intent.data != null) {
+                                Log.d(TAG, "Handling file view")
+                                val fileUri = intent.data
+                                if (fileUri != null) {
+                                    Log.d(TAG, "View file URI: $fileUri")
+                                    
+                                    val file = Arguments.createMap()
+                                    val actualMimeType = getMimeType(fileUri)
+                                    val fileName = getFileName(fileUri)
+                                    val fileSize = getFileSize(fileUri)
+                                    
+                                    file.putString("uri", fileUri.toString())
+                                    file.putString("type", actualMimeType)
+                                    fileName?.let { file.putString("name", it) }
+                                    if (fileSize > 0) {
+                                        file.putDouble("size", fileSize.toDouble())
+                                    }
+                                    
+                                    files.pushMap(file)
+                                    
+                                    // Store in static storage as HashMap
+                                    val fileData = hashMapOf<String, String>()
+                                    fileData["uri"] = fileUri.toString()
+                                    fileData["type"] = actualMimeType
+                                    fileName?.let { fileData["name"] = it }
+                                    if (fileSize > 0) {
+                                        fileData["size"] = fileSize.toString()
+                                    }
+                                    sharedFiles.add(fileData)
+                                    Log.d(TAG, "Added new view file to static storage. Name: $fileName, Type: $actualMimeType, Size: $fileSize bytes")
                                 }
                             }
                         }
                     }
-                    Intent.ACTION_VIEW -> {
-                        if (intent.data != null) {
-                            Log.d(TAG, "Handling file view")
-                            val fileUri = intent.data
-                            if (fileUri != null) {
-                                Log.d(TAG, "View file URI: $fileUri")
-                                
-                                foundNewFiles = true
-                                val file = Arguments.createMap()
-                                val actualMimeType = getMimeType(fileUri)
-                                val fileName = getFileName(fileUri)
-                                val fileSize = getFileSize(fileUri)
-                                
-                                file.putString("uri", fileUri.toString())
-                                file.putString("type", actualMimeType)
-                                fileName?.let { file.putString("name", it) }
-                                if (fileSize > 0) {
-                                    file.putDouble("size", fileSize.toDouble())
-                                }
-                                
-                                files.pushMap(file)
-                                
-                                // Store in static storage as HashMap
-                                val fileData = hashMapOf<String, String>()
-                                fileData["uri"] = fileUri.toString()
-                                fileData["type"] = actualMimeType
-                                fileName?.let { fileData["name"] = it }
-                                if (fileSize > 0) {
-                                    fileData["size"] = fileSize.toString()
-                                }
-                                sharedFiles.add(fileData)
-                                Log.d(TAG, "Added new view file to static storage. Name: $fileName, Type: $actualMimeType, Size: $fileSize bytes")
-                            }
-                        }
-                    }
-                    else -> {
-                        Log.d(TAG, "No matching action or unsupported intent")
-                        Log.d(TAG, "Action was: $action, data was: ${intent.data}")
-                    }
+                } else {
+                    Log.d(TAG, "Not a sharing intent. Action: $action")
                 }
             } else {
                 Log.d(TAG, "Intent is null")
             }
 
-            // If no new files found, return all files from static storage
-            if (!foundNewFiles && sharedFiles.isNotEmpty()) {
-                Log.d(TAG, "No new files found, returning ${sharedFiles.size} files from static storage")
-                val filesArray = Arguments.createArray()
-                for (fileData in sharedFiles) {
-                    val file = Arguments.createMap()
-                    file.putString("uri", fileData["uri"])
-                    file.putString("type", fileData["type"])
-                    fileData["name"]?.let { file.putString("name", it) }
-                    fileData["size"]?.let { 
-                        val size = it.toLongOrNull()
-                        if (size != null && size > 0) {
-                            file.putDouble("size", size.toDouble())
-                        }
-                    }
-                    filesArray.pushMap(file)
-                }
-                promise.resolve(filesArray)
-                return
-            }
-
-            Log.d(TAG, "Returning ${files.size()} files from intent")
+            Log.d(TAG, "Returning ${files.size()} files from intent processing")
             Log.d(TAG, "Static storage now has ${sharedFiles.size} files")
             promise.resolve(files)
         } catch (e: Exception) {
@@ -337,6 +314,7 @@ class FileShareModule(reactContext: ReactApplicationContext) : ReactContextBaseJ
             
             // Clear static storage
             sharedFiles.clear()
+            lastIntentProcessed = null
             
             val activity = currentActivity as? MainActivity
             if (activity != null) {

@@ -1,8 +1,9 @@
 import React from 'react'
 import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
 import { BottomSheet } from './src/components/bs/BottomSheet';
-import { TouchableOpacity } from 'react-native';
+import { TouchableOpacity, View } from 'react-native';
 import CreateProperty from './src/components/CreateProperty';
+import PropertyTabNavigator from './src/navigation/PropertyTabNavigator';
 
 const App = () => {
   const ref = React.useRef<BottomSheet>(null);
@@ -18,23 +19,37 @@ const App = () => {
   };
 
   return (
+    <View style={{ flex: 1 }}>
+      <PropertyTabNavigator />
+    </View>
+  )
+
+  return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <TouchableOpacity onPress={onPress}
+      <View
         style={{
-          width: 50,
-          height: 50,
-          borderRadius: 1000,
-          backgroundColor: 'white',
+          width: "100%",
           position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: [{ translateX: "-50%" }, { translateY: "-50%" }],
-        }} />
+          top: 50,
+          flexDirection: 'row',
+          justifyContent: 'center',
+          gap: 10,
+        }} >
+        <TouchableOpacity
+          onPress={() => ref.current?.snapToIndex(1, { animateFromBottom: true })}
+          style={{ padding: 20, backgroundColor: 'blue', borderRadius: 10, width: 50, height: 50 }} />
+        <TouchableOpacity
+          onPress={() => ref.current?.snapToIndex(1, { animateFromBottom: true })}
+          style={{ padding: 20, backgroundColor: 'green', borderRadius: 10, width: 50, height: 50 }} />
+        <TouchableOpacity
+          onPress={() => ref.current?.snapToIndex(1, { animateFromBottom: true })}
+          style={{ padding: 20, backgroundColor: 'yellow', borderRadius: 10, width: 50, height: 50 }} />
+      </View>
       <BottomSheet
         ref={ref}
-        initialSnapIndex={0}
+        index={0}
         snapPoints={[120, "50%", "85%"]}
-        onSnapChange={(index) => {
+        onChange={(index) => {
           console.log('Snap changed to index:', index);
         }}
       >

@@ -9,11 +9,12 @@ import {
   ImageBackground,
   Dimensions,
 } from 'react-native';
-import BottomSheet, { BottomSheetView, BottomSheetScrollView } from '@gorhom/bottom-sheet';
 import FilterForm from '../components/FilterForm';
 import CreateProperty from '../components/CreateProperty';
 import Profile from '../components/Profile';
 import { Property, PropertyFilter } from '../types/Property';
+import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import { BottomSheet } from '../components/bs/BottomSheet';
 
 type TabType = 'filter' | 'create' | 'profile';
 
@@ -24,7 +25,7 @@ const PropertyTabNavigator: React.FC = () => {
 
   // Bottom sheet refs and state
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => [120, '50%', '80%'], []);
+  const snapPoints = useMemo(() => [120, '50%', '85%'], []);
   const [currentSnapIndex, setCurrentSnapIndex] = useState(0);
 
   const handleSheetChanges = useCallback((index: number) => {
@@ -86,15 +87,15 @@ const PropertyTabNavigator: React.FC = () => {
       onPress={() => {
         if (activeTab === tab) {
           // Toggle: if same tab is clicked, toggle between 120px and 50%
+          console.log(tab, activeTab, currentSnapIndex)
           if (currentSnapIndex === 0) {
             bottomSheetRef.current?.snapToIndex(1); // Open to 50%
           } else {
             bottomSheetRef.current?.snapToIndex(0); // Close to 120px
           }
         } else {
-          // Different tab: switch content and open to 50%
           setActiveTab(tab);
-          bottomSheetRef.current?.snapToIndex(1);
+          bottomSheetRef.current?.snapToIndex(1, { animateFromBottom: true });
         }
       }}
     >
@@ -110,73 +111,69 @@ const PropertyTabNavigator: React.FC = () => {
     </TouchableOpacity>
   );
 
-  const windowHeight = Dimensions.get('window').height;
 
-  const snapValue = snapPoints[currentSnapIndex];
-  const height = (parseFloat(`${snapValue}`) / 100) * windowHeight;
-
-  console.log(currentSnapIndex, snapValue, height);
   return (
-    <View style={styles.container}>
-      {/* Map Background */}
-      <ImageBackground
-        source={{
-          uri: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'
-        }}
-        style={styles.mapBackground}
-        resizeMode="cover"
-      >
-        <SafeAreaView style={styles.safeArea}>
-          <View style={styles.mapOverlay}>
-            <View style={styles.mainContent}>
-              <Text style={styles.title}>Property Management</Text>
-              <Text style={styles.subtitle}>
-                Select a tab below to {activeTab === 'filter' ? 'filter properties' :
-                  activeTab === 'create' ? 'create new property' : 'manage your profile'}
-              </Text>
-            </View>
-          </View>
-        </SafeAreaView>
-      </ImageBackground>
-
-      {/* Bottom Sheet */}
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={0}
-        snapPoints={snapPoints}
-        onChange={handleSheetChanges}
-        enablePanDownToClose={false}
-        backgroundStyle={styles.bottomSheetBackground}
-        handleIndicatorStyle={styles.bottomSheetIndicator}
-        enableContentPanningGesture={false}
-        enableHandlePanningGesture={true}
-      >
-        <BottomSheetView
-          style={{
-            height: Math.min(height, windowHeight * 0.8)
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        {/* Map Background */}
+        <ImageBackground
+          source={{
+            uri: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=1000&q=80'
           }}
+          style={styles.mapBackground}
+          resizeMode="cover"
         >
-          <BottomSheetScrollView
+          <SafeAreaView style={styles.safeArea}>
+            <View style={styles.mapOverlay}>
+              <View style={styles.mainContent}>
+                <Text style={styles.title}>Property Management</Text>
+                <Text style={styles.subtitle}>
+                  Select a tab below to {activeTab === 'filter' ? 'filter properties' :
+                    activeTab === 'create' ? 'create new property' : 'manage your profile'}
+                </Text>
+              </View>
+            </View>
+          </SafeAreaView>
+        </ImageBackground>
+
+        {/* Bottom Sheet */}
+        <BottomSheet
+          ref={bottomSheetRef}
+          index={0}
+          snapPoints={snapPoints}
+          onChange={handleSheetChanges}
+          bottomInset={80}
+        // backgroundStyle={styles.bottomSheetBackground}
+        // handleIndicatorStyle={styles.bottomSheetIndicator}
+        // enableContentPanningGesture={false}
+        // enableHandlePanningGesture={true}
+        >
+          <ScrollView
             style={styles.bottomSheetContent}
-            contentContainerStyle={styles.bottomSheetScrollContent}
-            showsVerticalScrollIndicator={false}
+            showsVerticalScrollIndicator={true}
             keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled={true}
+            onMomentumScrollBegin={e => {
+              const y = e.nativeEvent.contentOffset.y;
+              const velocityY = e.nativeEvent.velocity?.y || 0;
+              if (y === 0 && velocityY > 5) {
+                bottomSheetRef.current?.snapToIndex(0);
+              }
+            }}
           >
             {renderTabContent()}
-          </BottomSheetScrollView>
-        </BottomSheetView>
-      </BottomSheet>
+          </ScrollView>
+        </BottomSheet>
 
-      {/* Bottom Tab Navigator - Always on top */}
-      <View style={styles.tabBarContainer}>
-        <View style={styles.tabBar}>
-          <TabButton tab="filter" title="Filter" icon="🔍" />
-          <TabButton tab="create" title="Create" icon="➕" />
-          <TabButton tab="profile" title="Profile" icon="👤" />
+        {/* Bottom Tab Navigator - Always on top */}
+        <View style={styles.tabBarContainer}>
+          <View style={styles.tabBar}>
+            <TabButton tab="filter" title="Filter" icon="🔍" />
+            <TabButton tab="create" title="Create" icon="➕" />
+            <TabButton tab="profile" title="Profile" icon="👤" />
+          </View>
         </View>
-      </View>
-    </View >
+      </View >
+    </GestureHandlerRootView>
   );
 };
 

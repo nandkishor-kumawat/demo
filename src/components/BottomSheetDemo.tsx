@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, StyleSheet, Button, ScrollView, TouchableOpacity } from 'react-native';
-import BottomSheet from './BottomSheet';
+import BottomSheet from './bs/BottomSheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import CreateProperty from './CreateProperty';
 

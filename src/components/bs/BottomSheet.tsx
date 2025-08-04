@@ -2,31 +2,35 @@ import { Dimensions, StyleSheet, View } from 'react-native'
 import React, { useCallback, useEffect, useImperativeHandle } from 'react'
 import { Gesture, GestureDetector } from 'react-native-gesture-handler'
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated'
+import { runOnJS } from 'react-native-worklets'
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window')
 const MAX_TRANSLATE_Y = -SCREEN_HEIGHT + 50;
 
-export interface BottomSheetMethods {
-  scrollTo: (destination: number) => void;
+export type BottomSheet = {
   isOpen: () => boolean;
   snapToIndex: (index: number) => void;
   close: () => void;
+  collapse: () => void;
+  getCurrentSnapIndex: () => number;
 }
 
 interface BottomSheetProps {
-  ref?: React.RefObject<BottomSheetMethods | null>;
+  ref?: React.RefObject<BottomSheet | null>;
   children?: React.ReactNode;
   snapPoints?: Array<number | `${number}%`>;
   initialSnapIndex?: number;
   closeIndex?: number;
+  onSnapChange?: (index: number) => void;
 }
 
-export default function BottomSheet({
+export function BottomSheet({
   ref,
   children,
   snapPoints = ['50%', '85%'],
   initialSnapIndex = 0,
-  closeIndex = -1
+  closeIndex = -1,
+  onSnapChange,
 }: BottomSheetProps) {
   const translateY = useSharedValue(0);
   const context = useSharedValue({ y: 0 });
@@ -51,7 +55,9 @@ export default function BottomSheet({
     if (index !== -1) {
       containerHeight.value = Math.abs(resolvedSnapPoints[index]);
     }
-
+    if (onSnapChange) {
+      runOnJS(onSnapChange)(index);
+    }
     translateY.value = withSpring(destination, {});
   }, [resolvedSnapPoints]);
 
@@ -69,11 +75,12 @@ export default function BottomSheet({
   }, [currentSnapIndex, closeIndex]);
 
   useImperativeHandle(ref, () => ({
-    scrollTo,
     isOpen,
     snapToIndex,
     close: () => snapToIndex(closeIndex),
-  }), [scrollTo, isOpen, snapToIndex, closeIndex]);
+    collapse: () => snapToIndex(0),
+    getCurrentSnapIndex: () => currentSnapIndex.value,
+  }), [isOpen, snapToIndex, closeIndex]);
 
 
   const gesture = Gesture.Pan()
@@ -122,7 +129,7 @@ export default function BottomSheet({
 
   const animatedContainerStyle = useAnimatedStyle(() => {
     return {
-      height: containerHeight.value,
+      height: containerHeight.value - 50,
     };
   });
 
@@ -133,7 +140,7 @@ export default function BottomSheet({
         <View style={styles.header}>
           <View style={styles.indicator} />
         </View>
-        <Animated.View style={animatedContainerStyle}>
+        <Animated.View style={[animatedContainerStyle]}>
           {children}
         </Animated.View>
       </Animated.View>

@@ -1,16 +1,17 @@
 import React from 'react'
 import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
-import BottomSheet, { BottomSheetMethods } from './src/components/BottomSheet';
+import { BottomSheet } from './src/components/bs/BottomSheet';
 import { TouchableOpacity } from 'react-native';
 import CreateProperty from './src/components/CreateProperty';
 
 const App = () => {
-  const ref = React.useRef<BottomSheetMethods>(null);
+  const ref = React.useRef<BottomSheet>(null);
 
   const onPress = () => {
-    const isOpen = ref.current?.isOpen();
+    const isOpen = (ref.current?.getCurrentSnapIndex() || 0) > 0;
+    console.log(ref.current?.getCurrentSnapIndex(), isOpen);
     if (isOpen) {
-      ref.current?.close();
+      ref.current?.collapse();
     } else {
       ref.current?.snapToIndex(1);
     }
@@ -32,7 +33,10 @@ const App = () => {
       <BottomSheet
         ref={ref}
         initialSnapIndex={0}
-        snapPoints={[120, "50%", "80%"]}
+        snapPoints={[120, "50%", "85%"]}
+        onSnapChange={(index) => {
+          console.log('Snap changed to index:', index);
+        }}
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"
